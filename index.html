@@ -1,27 +1,113 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
-    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js" integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+" crossorigin="anonymous"></script>
-</head>
-<body>
-    <input type="text" id="input" />
-    <div>
-        Server: <span id="server-span" ></span>
+    <script
+      src="https://cdn.socket.io/4.6.0/socket.io.min.js"
+      integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+"
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body>
+    <div class="p-4">
+      <label for="">Name</label>
+      <input id="username" type="text" class="border" placeholder="Name" />
+      <button class="p-2 text-white bg-orange-500" onclick="connect()">
+        Connect
+    </button>
+        My ID: <span id="my-id-span"></span>
+      <div class="mt-4 border">
+        Users:
+        <div id="list-of-users"></div>
+      </div>
+      <div id="messages" class="my-8" >
+
+      </div>
+      <div class="hidden mt-4" id="chat">
+        <input type="text" class="border" placeholder="message" id="input" />
+        <button class="p-2 text-white bg-orange-500" onclick="send()">
+        Send
+        </button>
+      </div>
     </div>
     <script>
-        const socket = io("ws://localhost:3000");
+      let currentUserId = null;
+      let messages = []
+      const socket = io("ws://localhost:3000");
 
-        document.getElementById("input").addEventListener("keydown", (e) => {
-            socket.emit("change-input", e.target.value);
-        });
+      // Set the ID of the socket in the my-id-span element after the socket is connected
+      socket.on("connect", () => {
+        document.getElementById("my-id-span").innerHTML = socket.id;
+      });
 
-        socket.on("server-update", (text) => {
-            document.getElementById("server-span").innerHTML = text;
+      socket.on("server-update", ({text, from}) => {
+        messages.push({ text, from })
+        const messagesDiv = document.getElementById("messages")
+        messagesDiv.innerHTML = ""
+        messages.forEach(({text, from}) => {
+          const div = document.createElement("div")
+          div.innerText = `${from}: ${text}`
+          messagesDiv.appendChild(div)
+        })
+      });
+
+      function send() {
+        const input = document.getElementById("input");
+        const text = input.value;
+        if (!text) return;
+        
+        socket.emit("send-message", text);
+        input.value = "";
+      }
+
+      // Connect to the socket server
+      function connect() {
+        const username = document.getElementById("username").value;
+        if (!username) {
+          alert("Please enter a username");
+          return;
+        }
+        socket.auth = { username };
+        socket.connect();
+      }
+
+      // Update the list of users in the HTML
+      function updateUsers(users) {
+        const list = document.getElementById("list-of-users");
+        list.innerHTML = "";
+        users.forEach((user) => {
+          const item = document.createElement("div");
+          item.innerText = `${user.username} (${user.id})`;
+          item.id = user.id;
+          list.appendChild(item);
+          item.classList.add("p-2", "cursor-pointer", "hover:bg-gray-200");
+          // add onclick event to the item
+          item.onclick = () => {
+            selectUser(user.id);
+            list.childNodes.forEach((child) => {
+              if (child.id !== user.id) {
+                child.classList.remove("bg-orange-200", "font-bold");
+              }
+            });
+            item.classList.add("bg-orange-200", "font-bold");
+          };
         });
+      }
+
+      function selectUser(userId) {
+        currentUserId = userId;
+        socket.emit("select-user", userId);
+        document.getElementById("chat").classList.remove("hidden");
+      }
+
+      // Listen for the user-update event emitted by the server
+      socket.on("user-update", (users) => {
+        updateUsers(users);
+      });
     </script>
-</body>
+  </body>
 </html>
